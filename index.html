@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Undian Materi Kelompok Otomatis</title>
+    <title>Undian Materi Kelompok Berhasil</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f7f6; padding: 20px; text-align: center; color: #2c3e50; }
         .container { max-width: 500px; background: white; margin: 20px auto; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -26,7 +26,6 @@
     <h2>🎰 Undian Materi Kelompok</h2>
     <p>Silakan pilih kelompok Anda untuk mengundi materi secara acak.</p>
     
-    <!-- Dropdown ini sekarang otomatis terisi data dari Google Sheets -->
     <select id="pilihKelompok">
         <option value="">-- Memuat Daftar Kelompok... --</option>
     </select>
@@ -53,21 +52,34 @@
 </div>
 
 <script>
-    // GANTI DENGAN URL WEB APP BARU ANDA DARI GOOGLE APPS SCRIPT
-    const API_URL = "https://script.google.com/macros/s/AKfycbyUpIj95Il5pPEhgkSeWwnbmUOYe0pIzTcyYD5MIO3jwQ_AQDY5akvEbjM53yGkv-6JBw/exec"; 
+    // MASUKKAN URL WEB APP ANDA DI SINI
+    const API_URL = "https://script.google.com/macros/s/AKfycbwbDZxlkFQO5ogrk6ZoABwRPqseJhHvkB05ieFGwbjCkX8Q21kQZKMQvxwfY9XyeXD0Xw/exec"; 
 
-    window.onload = muatDataGoogleSheets;
+    window.onload = muatDataAwal;
 
-    async function muatDataGoogleSheets() {
+    function panggilJSONP(url) {
+        return new Promise((resolve, reject) => {
+            const namaCallback = 'callback_' + Math.round(100000 * Math.random());
+            window[namaCallback] = function(data) {
+                delete window[namaCallback];
+                document.body.removeChild(script);
+                resolve(data);
+            };
+            const script = document.createElement('script');
+            script.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'callback=' + namaCallback;
+            script.onerror = reject;
+            document.body.appendChild(script);
+        });
+    }
+
+    async function muatDataAwal() {
         try {
-            const response = await fetch(API_URL);
-            const data = await response.json();
+            const data = await panggilJSONP(API_URL);
             
-            // 1. Isi Dropdown Kelompok secara Otomatis
             const selectKelompok = document.getElementById("pilihKelompok");
             selectKelompok.innerHTML = "";
             
-            if(data.kelompok.length === 0) {
+            if(!data.kelompok || data.kelompok.length === 0) {
                 selectKelompok.innerHTML = '<option value="">-- Semua Kelompok Sudah Mengundi --</option>';
                 document.getElementById("btnUndi").disabled = true;
                 document.getElementById("btnUndi").innerText = "UNDIAN SELESAI";
@@ -82,11 +94,10 @@
                 document.getElementById("btnUndi").innerText = "KLIK UNTUK UNDI MATERI";
             }
 
-            // 2. Isi Papan Tabel Real-Time
             const tbody = document.getElementById("bodyTabel");
             tbody.innerHTML = "";
 
-            if (data.log.length === 0) {
+            if (!data.log || data.log.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="2" class="kosong">Belum ada kelompok yang mengundi.</td></tr>`;
                 return;
             }
@@ -97,8 +108,8 @@
             });
 
         } catch (error) {
-            console.error("Gagal sinkronisasi data:", error);
-            document.getElementById("bodyTabel").innerHTML = `<tr><td colspan="2" class="kosong" style="color:red;">Gagal terhubung ke database server.</td></tr>`;
+            console.error(error);
+            document.getElementById("bodyTabel").innerHTML = `<tr><td colspan="2" class="kosong" style="color:red;">Gagal terhubung ke database server Google.</td></tr>`;
         }
     }
 
@@ -115,24 +126,19 @@
         boxHasil.style.display = "none";
 
         try {
-            const response = await fetch(API_URL, {
-                method: "POST",
-                body: JSON.stringify({ kelompok: kelompok })
-            });
-            const data = await response.json();
+            const urlUndi = `${API_URL}?action=undi&kelompok=${encodeURIComponent(kelompok)}`;
+            const data = await panggilJSONP(urlUndi);
             
             if(data.status === "success") {
                 boxHasil.innerHTML = `Sukses!<br>${kelompok} mendapatkan:<br><span style="font-size:18px; color:#117a65;">🎯 ${data.materi}</span>`;
                 boxHasil.style.display = "block";
-                
-                // Segera sinkronisasi ulang data terbaru
-                await muatDataGoogleSheets();
+                await muatDataAwal();
             } else {
                 alert("Gagal: " + data.message);
-                await muatDataGoogleSheets();
+                await muatDataAwal();
             }
         } catch (error) {
-            alert("Terjadi masalah jaringan ke Google Sheets.");
+            alert("Terjadi masalah koneksi jaringan.");
             console.error(error);
         }
     }
