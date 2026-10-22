@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Undian Materi Kelompok Real-Time</title>
+    <title>Undian Materi Kelompok Otomatis</title>
     <style>
         body { font-family: Arial, sans-serif; background: #f4f7f6; padding: 20px; text-align: center; color: #2c3e50; }
         .container { max-width: 500px; background: white; margin: 20px auto; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
@@ -12,8 +12,6 @@
         button:hover { background: #219653; }
         button:disabled { background: #bdc3c7; cursor: not-allowed; }
         .hasil { margin-top: 15px; padding: 15px; background: #e8f8f5; border: 1px solid #2cc7a0; border-radius: 4px; display: none; font-weight: bold; color: #117a65; }
-        
-        /* Gaya Tabel Real-time */
         .tabel-container { max-width: 500px; margin: 30px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
@@ -26,22 +24,17 @@
 
 <div class="container">
     <h2>🎰 Undian Materi Kelompok</h2>
-    <p>Pilih kelompok Anda untuk melakukan pengundian materi.</p>
+    <p>Silakan pilih kelompok Anda untuk mengundi materi secara acak.</p>
     
+    <!-- Dropdown ini sekarang otomatis terisi data dari Google Sheets -->
     <select id="pilihKelompok">
-        <option value="Kelompok 1">Kelompok 1</option>
-        <option value="Kelompok 2">Kelompok 2</option>
-        <option value="Kelompok 3">Kelompok 3</option>
-        <option value="Kelompok 4">Kelompok 4</option>
-        <option value="Kelompok 5">Kelompok 6</option>
-        <option value="Kelompok 6">Kelompok 6</option>
+        <option value="">-- Memuat Daftar Kelompok... --</option>
     </select>
     
-    <button id="btnUndi" onclick="kirimUndian()">KLIK UNTUK UNDI MATERI</button>
+    <button id="btnUndi" onclick="kirimUndian()" disabled>MEMUAT DATA...</button>
     <div id="boxHasil" class="hasil"></div>
 </div>
 
-<!-- PAPAN MONITORING REAL-TIME -->
 <div class="tabel-container">
     <h3>📊 Papan Hasil Undian (Real-Time)</h3>
     <table>
@@ -60,34 +53,52 @@
 </div>
 
 <script>
-    // GANTI DENGAN URL WEB APP BARU DARI GOOGLE APPS SCRIPT
-    const API_URL = "https://script.google.com/macros/s/AKfycbyuxNbT3YYDXprSd4gncwQJHAQnNlJ7PHVzF9LtKjd-QZD6Lr6UwGrmGQHlNM9tuqIytg/exec"; 
+    // GANTI DENGAN URL WEB APP BARU ANDA DARI GOOGLE APPS SCRIPT
+    const API_URL = "URL_APPLIKASI_WEB_BARU_ANDA"; 
 
-    // Fungsi otomatis memuat data saat halaman dibuka
-    window.onload = muatDataRealtime;
+    window.onload = muatDataGoogleSheets;
 
-    async function muatDataRealtime() {
+    async function muatDataGoogleSheets() {
         try {
             const response = await fetch(API_URL);
             const data = await response.json();
             
+            // 1. Isi Dropdown Kelompok secara Otomatis
+            const selectKelompok = document.getElementById("pilihKelompok");
+            selectKelompok.innerHTML = "";
+            
+            if(data.kelompok.length === 0) {
+                selectKelompok.innerHTML = '<option value="">-- Semua Kelompok Sudah Mengundi --</option>';
+                document.getElementById("btnUndi").disabled = true;
+                document.getElementById("btnUndi").innerText = "UNDIAN SELESAI";
+            } else {
+                data.kelompok.forEach(k => {
+                    let opt = document.createElement('option');
+                    opt.value = k;
+                    opt.innerHTML = k;
+                    selectKelompok.appendChild(opt);
+                });
+                document.getElementById("btnUndi").disabled = false;
+                document.getElementById("btnUndi").innerText = "KLIK UNTUK UNDI MATERI";
+            }
+
+            // 2. Isi Papan Tabel Real-Time
             const tbody = document.getElementById("bodyTabel");
-            tbody.innerHTML = ""; // Bersihkan teks loading
+            tbody.innerHTML = "";
 
             if (data.log.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="2" class="kosong">Belum ada kelompok yang mengundi.</td></tr>`;
                 return;
             }
 
-            // Isi tabel dengan data dari Google Sheets
             data.log.forEach(item => {
-                const row = `tr<td><b>${item.kelompok}</b></td><td>✨ ${item.materi}</td></tr>`;
+                const row = `<tr><td><b>${item.kelompok}</b></td><td>✨ ${item.materi}</td></tr>`;
                 tbody.insertAdjacentHTML('beforeend', row);
             });
 
         } catch (error) {
-            console.error("Gagal memuat papan real-time:", error);
-            document.getElementById("bodyTabel").innerHTML = `<tr><td colspan="2" class="kosong" style="color:red;">Gagal memperbarui papan data.</td></tr>`;
+            console.error("Gagal sinkronisasi data:", error);
+            document.getElementById("bodyTabel").innerHTML = `<tr><td colspan="2" class="kosong" style="color:red;">Gagal terhubung ke database server.</td></tr>`;
         }
     }
 
@@ -96,7 +107,8 @@
         const btn = document.getElementById("btnUndi");
         const boxHasil = document.getElementById("boxHasil");
         
-        if(!confirm(`Apakah Anda benar mewakili ${kelompok}? Tindakan ini hanya bisa dilakukan sekali.`)) return;
+        if(!kelompok) return;
+        if(!confirm(`Apakah Anda benar mewakili ${kelompok}? Pilihan tidak bisa diulang.`)) return;
 
         btn.disabled = true;
         btn.innerText = "Mengundi...";
@@ -113,17 +125,15 @@
                 boxHasil.innerHTML = `Sukses!<br>${kelompok} mendapatkan:<br><span style="font-size:18px; color:#117a65;">🎯 ${data.materi}</span>`;
                 boxHasil.style.display = "block";
                 
-                // Segera perbarui tabel real-time setelah sukses mengundi
-                await muatDataRealtime();
+                // Segera sinkronisasi ulang data terbaru
+                await muatDataGoogleSheets();
             } else {
                 alert("Gagal: " + data.message);
+                await muatDataGoogleSheets();
             }
         } catch (error) {
-            alert("Terjadi masalah jaringan.");
+            alert("Terjadi masalah jaringan ke Google Sheets.");
             console.error(error);
-        } finally {
-            btn.disabled = false;
-            btn.innerText = "KLIK UNTUK UNDI MATERI";
         }
     }
 </script>
